@@ -1,7 +1,6 @@
 package usecase
 
 import (
-	"fmt"
 	"github.com/Zhoangp/Course-Service/internal/model"
 	"github.com/Zhoangp/Course-Service/pb"
 	"github.com/Zhoangp/Course-Service/pkg/utils"
@@ -64,7 +63,6 @@ func (uc *coursesUseCase) GetCourse(fakeId string) (*pb.Course, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(course.Sections[1].Lectures)
 	course.FakeId = uc.h.Encode(course.Id)
 	var sections []*pb.Section
 	for _, i := range course.Sections {
