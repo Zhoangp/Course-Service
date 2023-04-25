@@ -43,7 +43,7 @@ func (c *coursesRepository) GetCourses(limit int, page int) (res []model.Courses
 func (c *coursesRepository) GetCourse(id int) (res model.Courses, err error) {
 	db := c.db.Model(&res)
 
-	if err = db.Where("id = ?", id).Preload("Sections.Lectures").First(&res).Error; err != nil {
+	if err = db.Where("id = ?", id).Preload("Sections.Lectures.LectureResource").First(&res).Error; err != nil {
 		return
 	}
 

@@ -64,11 +64,11 @@ func (uc *coursesUseCase) GetCourse(fakeId string) (*pb.Course, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println(course.Sections[1].Lectures)
 	course.FakeId = uc.h.Encode(course.Id)
 	var sections []*pb.Section
-	var lectures []*pb.Lecture
-	fmt.Println(course.Sections)
 	for _, i := range course.Sections {
+		var lectures []*pb.Lecture
 		for _, j := range i.Lectures {
 			j.FakeId = uc.h.Encode(j.Id)
 			lectures = append(lectures, &pb.Lecture{
@@ -76,6 +76,10 @@ func (uc *coursesUseCase) GetCourse(fakeId string) (*pb.Course, error) {
 				Title:   j.Title,
 				Content: j.Content,
 				Status:  j.Status,
+				Video: &pb.Resource{
+					Url:      j.LectureResource.Url,
+					Duration: j.LectureResource.Duration,
+				},
 			})
 
 		}

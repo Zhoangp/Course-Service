@@ -25,16 +25,26 @@ type Section struct {
 	Title            string    `gorm:"column:title"`
 	CourseId         int       `gorm:"column:course_id"`
 	NumberOfLectures int       `gorm:"column:numberOfLectures"`
-	Lectures         []Lecture `gorm:"foreignKey:SectionId;references:Id"`
+	Lectures         []Lecture `json:"lectures" gorm:"foreignKey:SectionId;references:Id"`
 }
 type Lecture struct {
 	common.SQLModel
-	Title     string `json:"title" gorm:"column:title"`
-	Content   string `json:"content" gorm:"column:content"`
-	Status    string `json:"status" gorm:"column:status"`
-	SectionId int    `json:"section_id" gorm:"column:section_id"`
+	Title           string           `json:"title" gorm:"column:title"`
+	Content         string           `json:"content" gorm:"column:content"`
+	Status          string           `json:"status" gorm:"column:status"`
+	SectionId       int              `json:"section_id" gorm:"column:section_id"`
+	LectureResource LectureResources `gorm:"foreignKey:LectureId;references:Id"`
+}
+type LectureResources struct {
+	common.SQLModel
+	Url       string `gorm:"column:url"`
+	Duration  string `gorm:"column:duration"`
+	LectureId int    `gorm:"lecture_id"`
 }
 
+func (LectureResources) TableName() string {
+	return "LectureResources"
+}
 func (Lecture) TableName() string {
 	return "Lectures"
 }
