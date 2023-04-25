@@ -10,6 +10,7 @@ import (
 type CoursesUseCase interface {
 	CreateCourse(data *model.Courses) error
 	GetCourses(limit int, page int) (courses []*pb.Course, err error)
+	GetCourse(fakeId string) (*pb.Course, error)
 }
 type coursesHandler struct {
 	uc CoursesUseCase
@@ -33,15 +34,25 @@ func HandleError(err error) *pb.ErrorResponse {
 func NewCoursesHandler(uc CoursesUseCase) *coursesHandler {
 	return &coursesHandler{uc: uc}
 }
-func (hdl *coursesHandler) GetCoursesWithPagination(ctx context.Context, rq *pb.GetCoursesPaginationRequest) (*pb.GetCoursesPaginationResponse, error) {
-
+func (hdl *coursesHandler) GetCourses(ctx context.Context, rq *pb.GetCoursesRequest) (*pb.GetCoursesResponse, error) {
 	res, err := hdl.uc.GetCourses(int(rq.PageSize), int(rq.Page))
 	if err != nil {
-		return &pb.GetCoursesPaginationResponse{
+		return &pb.GetCoursesResponse{
 			Error: HandleError(err),
 		}, nil
 	}
-	return &pb.GetCoursesPaginationResponse{
+	return &pb.GetCoursesResponse{
 		Courses: res,
+	}, nil
+}
+func (hdl *coursesHandler) GetCourse(ctx context.Context, rq *pb.GetCourseRequest) (*pb.GetCourseResponse, error) {
+	res, err := hdl.uc.GetCourse(rq.Id)
+	if err != nil {
+		return &pb.GetCourseResponse{
+			Error: HandleError(err),
+		}, nil
+	}
+	return &pb.GetCourseResponse{
+		Course: res,
 	}, nil
 }
