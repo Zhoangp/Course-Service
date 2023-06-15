@@ -8,10 +8,10 @@ import (
 )
 
 type Image struct {
-	Id     int    `json:"id" gorm:"column:id"`
-	Url    string `json:"url" gorm:"column:url"`
-	Width  string `json:"width" gorm:"column:width"`
-	Height string `json:"height" gorm:"column:height"`
+	Id     int    `gorm:"column:id"`
+	Url    string `valid:"url~invalid url,required~url image is required" gorm:"column:url"`
+	Width  string `gorm:"column:width"`
+	Height string `gorm:"column:height"`
 }
 
 func (Image) TableName() string {

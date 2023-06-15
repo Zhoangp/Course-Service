@@ -1,26 +1,41 @@
 package usecase
 
 import (
+	"github.com/Zhoangp/Course-Service/config"
 	"github.com/Zhoangp/Course-Service/internal/model"
 	"github.com/Zhoangp/Course-Service/pb"
+	"github.com/Zhoangp/Course-Service/pb/user"
+	"github.com/Zhoangp/Course-Service/pkg/common"
 	"github.com/Zhoangp/Course-Service/pkg/utils"
+	"net/http"
 	"strconv"
 )
 
 type CoursesRepository interface {
-	Create(course *model.Courses) error
-	GetCourses(limit int, page int) (res []model.Courses, err error)
-	GetCourse(id int) (res model.Courses, err error)
+	Create(course *model.Course) error
+	GetCourses(limit int, page int) (res []model.Course, total int64, err error)
+	GetCourse(id int) (res model.Course, err error)
+	GetAllCategories() ([]model.Category, error)
+	NewEnrollment(enrollment *model.Enrollment) error
+	GetCourseContent(e *model.Enrollment) (*model.Course, error)
+	GetEnrollments(u *model.User) ([]model.Course, error)
+	NewCourse(course *model.Course) (*int, error)
+	GetPrices() (res []model.Price, err error)
+	UpdateCourse(course *model.Course) error
+	PublishCourse(course *model.Course) error
+	FindDataWithCondition(conditions map[string]any) ([]model.Course, error)
+	DeleteCourse(course model.Course) error
 }
 type coursesUseCase struct {
 	repo CoursesRepository
+	cf   *config.Config
 	h    *utils.Hasher
 }
 
-func NewCoursesUseCase(repo CoursesRepository, h *utils.Hasher) *coursesUseCase {
-	return &coursesUseCase{repo, h}
+func NewCoursesUseCase(repo CoursesRepository, h *utils.Hasher, cf *config.Config) *coursesUseCase {
+	return &coursesUseCase{repo: repo, h: h, cf: cf}
 }
-func (uc *coursesUseCase) CreateCourse(data *model.Courses) error {
+func (uc *coursesUseCase) CreateCourse(data *model.Course) error {
 
 	if err := uc.repo.Create(data); err != nil {
 		return err
@@ -28,33 +43,69 @@ func (uc *coursesUseCase) CreateCourse(data *model.Courses) error {
 
 	return nil
 }
-func (uc *coursesUseCase) GetCourses(limit int, page int) (courses []*pb.Course, err error) {
-	res, err := uc.repo.GetCourses(limit, page)
-	for i, _ := range res {
-		res[i].FakeId = uc.h.Encode(res[i].Id)
+func (uc *coursesUseCase) GetCourses(limit int, page int) (coursesResponse pb.GetCoursesResponse, err error) {
+	res, total, err := uc.repo.GetCourses(limit, page)
+	var courses []*pb.Course
+	for i, course := range res {
+		if !course.IsPublish {
+			continue
+		}
+		course.FakeId = uc.h.Encode(course.Id)
+		price := &pb.Price{
+			Value:    course.Price.Value,
+			Currency: course.Price.Currency,
+		}
+		if !res[i].IsPaid {
+			price.Value = "free"
+		}
+		var img pb.Image
+		if course.Thumbnail != nil {
+			img.Url = course.Thumbnail.Url
+			img.Width = course.Thumbnail.Width
+			img.Height = course.Thumbnail.Height
+		}
 		courses = append(courses, &pb.Course{
-			Id:          res[i].FakeId,
-			Title:       res[i].Title,
-			Description: res[i].CourseDescription,
-			Level:       res[i].CourseLevel,
-			Language:    res[i].CourseLanguage,
-			Price:       strconv.FormatFloat(res[i].CoursePrice, 'f', -1, 64),
-			Discount:    res[i].CourseDiscount,
-			Currency:    res[i].CourseCurrency,
-			Duration:    res[i].CourseDuration,
-			Status:      res[i].CourseStatus,
-			Rating:      res[i].CourseRating,
-			Thumbnail: &pb.Image{
-				Url:    res[i].CourseThumbnail.Url,
-				Width:  res[i].CourseThumbnail.Width,
-				Height: res[i].CourseThumbnail.Height,
+			Id:          course.FakeId,
+			Title:       course.Title,
+			Description: course.Description,
+			Level:       course.Level,
+			Language:    course.Language,
+			Price:       price,
+			NumReviews:  strconv.Itoa(course.NumReviews),
+			AvgRating:   strconv.Itoa(int(course.Rating)),
+			Thumbnail:   &img,
+			Instructor: &user.Instructor{
+				Id: uc.h.Encode(course.InstructorID),
 			},
+			Requirement: course.Requirement,
 		})
 	}
-	return
+	prePage := &pb.Link{
+		Method: "POST",
+		Href:   uc.cf.Service.Host + "/courses?" + "pageSize=" + strconv.Itoa(limit) + "page=" + strconv.Itoa(page-1),
+		Rel:    "pre_page",
+	}
 
+	nextPage := &pb.Link{
+		Method: "POST",
+		Href:   uc.cf.Service.Host + "/courses?" + "pageSize=" + strconv.Itoa(limit) + "page=" + strconv.Itoa(page+1),
+		Rel:    "next_page",
+	}
+
+	if int(total) <= (page * limit) {
+		nextPage.Href = uc.cf.Service.Host + "/courses?" + "pageSize=" + strconv.Itoa(limit) + "page=" + strconv.Itoa(1)
+
+	}
+	if page <= 1 {
+		prePage.Href = uc.cf.Service.Host + "/courses?" + "pageSize=" + strconv.Itoa(limit) + "page=" + strconv.Itoa(int(total)/limit)
+	}
+	coursesResponse.Courses = courses
+	coursesResponse.Links = append(coursesResponse.Links, prePage)
+	coursesResponse.Links = append(coursesResponse.Links, nextPage)
+	return
 }
-func (uc *coursesUseCase) GetCourse(fakeId string) (*pb.Course, error) {
+
+func (uc *coursesUseCase) GetCourse(fakeId string) (*pb.GetCourseResponse, error) {
 	id, err := uc.h.Decode(fakeId)
 	if err != nil {
 		return nil, err
@@ -63,23 +114,33 @@ func (uc *coursesUseCase) GetCourse(fakeId string) (*pb.Course, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !course.IsPublish {
+		return nil, common.NewCustomError(err, http.StatusNotFound, "This course has not published yet!")
+	}
 	course.FakeId = uc.h.Encode(course.Id)
+	if !course.IsPaid {
+		course.Price.Value = "free"
+	}
 	var sections []*pb.Section
 	for _, i := range course.Sections {
 		var lectures []*pb.Lecture
 		for _, j := range i.Lectures {
+			var resource pb.Resource
+			if j.IsFree {
+				resource = pb.Resource{
+					Url:      j.Resource.Url,
+					Duration: j.Resource.Duration,
+				}
+			}
 			j.FakeId = uc.h.Encode(j.Id)
 			lectures = append(lectures, &pb.Lecture{
-				Id:      j.FakeId,
-				Title:   j.Title,
-				Content: j.Content,
-				Status:  j.Status,
-				Video: &pb.Resource{
-					Url:      j.LectureResource.Url,
-					Duration: j.LectureResource.Duration,
-				},
+				Id:       j.FakeId,
+				Title:    j.Title,
+				Content:  j.Content,
+				Status:   j.Status,
+				IsFree:   j.IsFree,
+				Resource: &resource,
 			})
-
 		}
 		i.FakeId = uc.h.Encode(i.Id)
 		sections = append(sections, &pb.Section{
@@ -89,20 +150,57 @@ func (uc *coursesUseCase) GetCourse(fakeId string) (*pb.Course, error) {
 			Lectures:         lectures,
 		})
 	}
+	var img pb.Image
+	if course.Thumbnail != nil {
+		img.Url = course.Thumbnail.Url
+		img.Width = course.Thumbnail.Width
+		img.Height = course.Thumbnail.Height
+	}
 	res := &pb.Course{
 		Id:          course.FakeId,
 		Title:       course.Title,
-		Description: course.CourseDescription,
-		Level:       course.CourseLevel,
-		Language:    course.CourseLanguage,
-		Price:       strconv.FormatFloat(course.CoursePrice, 'f', -1, 64),
-		Discount:    course.CourseDiscount,
-		Currency:    course.CourseCurrency,
-		Duration:    course.CourseDuration,
-		Status:      course.CourseStatus,
-		Rating:      course.CourseRating,
-		Sections:    sections,
+		Description: course.Description,
+		Level:       course.Level,
+		Language:    course.Language,
+		Price: &pb.Price{
+			Value:    course.Price.Value,
+			Currency: course.Price.Currency,
+		},
+		AvgRating: strconv.Itoa(int(course.Rating)),
+		Thumbnail: &img,
+		Instructor: &user.Instructor{
+			Id: uc.h.Encode(course.InstructorID),
+		},
+		Sections:   sections,
+		NumReviews: strconv.Itoa(course.NumReviews),
 	}
 
-	return res, nil
+	return &pb.GetCourseResponse{
+		Course: res,
+	}, nil
+}
+
+func (uc *coursesUseCase) GetAllCategories() (*pb.GetAllCategoriesResponse, error) {
+	cate, err := uc.repo.GetAllCategories()
+	if err != nil {
+		return nil, err
+	}
+	var res pb.GetAllCategoriesResponse
+
+	for _, category := range cate {
+		var subcategories []*pb.SubCategory
+		for _, subcategory := range category.SubCategories {
+			subcategories = append(subcategories, &pb.SubCategory{
+				Id:         uc.h.Encode(subcategory.Id),
+				Name:       category.Name,
+				CategoryId: uc.h.Encode(subcategory.CategoryId),
+			})
+		}
+		res.Categories = append(res.Categories, &pb.Category{
+			Id:            uc.h.Encode(category.Id),
+			Name:          category.Name,
+			Subcategories: subcategories,
+		})
+	}
+	return &res, nil
 }

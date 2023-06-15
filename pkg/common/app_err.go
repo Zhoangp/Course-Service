@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -51,30 +50,6 @@ func ErrInternal(causes error) *AppError {
 	return &AppError{causes, http.StatusInternalServerError, "something went wrong in the server"}
 }
 
-func NewCustomError(causes error, msg string) *AppError {
-	return &AppError{causes, http.StatusBadRequest, msg}
-}
-
-func ErrCannotListEntity(entity string, causes error) *AppError {
-	return NewCustomError(causes, fmt.Sprintf("Cannot list %s", entity))
-}
-
-func ErrEntityNotFound(entity string, causes error) *AppError {
-	return NewCustomError(causes, fmt.Sprintf("%s not found", entity))
-}
-
-func ErrCannotCreateEntity(entity string, causes error) *AppError {
-	return NewCustomError(causes, fmt.Sprintf("cannot create %s", entity))
-}
-
-func ErrCannotUpdateEntity(entity string, causes error) *AppError {
-	return NewCustomError(causes, fmt.Sprintf("cannot update %s", entity))
-}
-
-func ErrCannotDeleteEntity(entity string, causes error) *AppError {
-	return NewCustomError(causes, fmt.Sprintf("cannot delete %s", entity))
-}
-
-func ErrEntityExisted(entity string, causes error) *AppError {
-	return NewCustomError(causes, fmt.Sprintf("%s already exists", entity))
+func NewCustomError(causes error, statusCode int, msg string) *AppError {
+	return &AppError{causes, statusCode, msg}
 }

@@ -32,15 +32,15 @@ func main() {
 		return
 	}
 	courseRepo := repo.NewCoursesRepository(gormDb)
-	courseUsecase := usecase.NewCoursesUseCase(courseRepo, hasher)
-	courseHandler := https.NewCoursesHandler(courseUsecase)
 
+	courseUsecase := usecase.NewCoursesUseCase(courseRepo, hasher, cf)
+	courseHandler := https.NewCoursesHandler(courseUsecase, cf)
 	lis, err := net.Listen("tcp", ":"+cf.Service.Port)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Auth Svc on", cf.Service.Port)
+	fmt.Println("Course Svc on", cf.Service.Port)
 	grpcServer := grpc.NewServer(grpc.MaxMsgSize(cf.Service.MaxSizeMess),
 		grpc.MaxRecvMsgSize(cf.Service.MaxSizeMess),
 		grpc.MaxSendMsgSize(cf.Service.MaxSizeMess))
